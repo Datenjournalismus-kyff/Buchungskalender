@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Belegungsplan</title>
+    <!-- Zuverlässiges FullCalendar CSS über CDN -->
     <link href="https://jsdelivr.net" rel="stylesheet">
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background-color: #f9f9f9; }
@@ -13,6 +14,8 @@
         .box { width: 20px; height: 20px; border-radius: 4px; }
         .frei { background-color: #28a745; }
         .belegt { background-color: #dc3545; }
+        /* Korrektur für korrekte Zellendarstellung */
+        .fc-daygrid-day { transition: background-color 0.2s; }
     </style>
 </head>
 <body>
@@ -25,75 +28,59 @@
     <div id="calendar"></div>
 </div>
 
+<!-- Zuverlässiges FullCalendar JavaScript über CDN -->
 <script src="https://jsdelivr.net"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Termine aus der txt-Datei laden
-    fetch('termine.txt')
-        .then(response => response.text())
-        .then(text => {
-            const gebuchteTage = [];
-            
-            // Text zeilenweise splitten
-            const zeilen = text.split('\n');
-            zeilen.forEach(zeile => {
-                // Leerzeichen entfernen
-                const bereinigteZeile = zeile.trim();
-                if (bereinigteZeile === "") return; // Leere Zeilen überspringen
+    
+    // =========================================================================
+    // HIER DEINE GEBUCHTEN TAGE EINTRAGEN (Format: YYYY-MM-DD)
+    // Das End-Datum ist exklusiv (Abreisetag). 
+    // Beispiel: '2026-07-01' bis '2026-07-05' sperrt den 1., 2., 3. und 4. Juli.
+    // =========================================================================
+    const gebuchteTage = [
+        { start: '2026-07-01', end: '2026-07-05' },
+        { start: '2026-07-12', end: '2026-07-15' },
+        { start: '2026-07-20', end: '2026-07-21' }
+    ];
+    // =========================================================================
 
-                const daten = bereinigteZeile.split(',');
-                if (daten.length === 2) {
-                    gebuchteTage.push({
-                        start: daten[0].trim(),
-                        end: daten[1].trim()
-                    });
-                }
+    var calendarEl = document.getElementById('calendar');
+    var calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        locale: 'de',
+        firstDay: 1, // Woche startet am Montag
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: ''
+        },
+        dayCellDidMount: function(info) {
+            var cz = info.date;
+            var jahr = cz.getFullYear();
+            var monat = String(cz.getMonth() + 1).padStart(2, '0');
+            var tag = String(cz.getDate()).padStart(2, '0');
+            var datumsString = `${jahr}-${monat}-${tag}`;
+
+            // Prüfen, ob der Tag in einem gebuchten Zeitraum liegt
+            var istGebucht = gebuchteTage.some(function(zeitraum) {
+                var start = new Date(zeitraum.start + "T00:00:00");
+                var end = new Date(zeitraum.end + "T00:00:00");
+                var aktuell = new Date(datumsString + "T00:00:00");
+                return aktuell >= start && aktuell < end;
             });
 
-            initCalendar(gebuchteTage);
-        })
-        .catch(error => {
-            console.error('Fehler beim Laden der Termine:', error);
-            initCalendar([]); 
-        });
-
-    function initCalendar(gebuchteTage) {
-        var calendarEl = document.getElementById('calendar');
-        var calendar = new FullCalendar.Calendar(calendarEl, {
-            initialView: 'dayGridMonth',
-            locale: 'de',
-            firstDay: 1,
-            headerToolbar: {
-                left: 'prev,next today',
-                center: 'title',
-                right: ''
-            },
-            dayCellDidMount: function(info) {
-                var cz = info.date;
-                var jahr = cz.getFullYear();
-                var monat = String(cz.getMonth() + 1).padStart(2, '0');
-                var tag = String(cz.getDate()).padStart(2, '0');
-                var datumsString = `${jahr}-${monat}-${tag}`;
-
-                // Prüfen, ob der Tag in einem gebuchten Zeitraum liegt
-                var istGebucht = gebuchteTage.some(function(zeitraum) {
-                    var start = new Date(zeitraum.start + "T00:00:00");
-                    var end = new Date(zeitraum.end + "T00:00:00");
-                    var aktuell = new Date(datumsString + "T00:00:00");
-                    return aktuell >= start && aktuell < end;
-                });
-
-                if (istGebucht) {
-                    info.el.style.backgroundColor = '#dc3545';
-                    info.el.style.color = '#ffffff';
-                } else {
-                    info.el.style.backgroundColor = '#28a745';
-                    info.el.style.color = '#ffffff';
-                }
+            if (istGebucht) {
+                info.el.style.backgroundColor = '#dc3545'; // Rot
+                info.el.style.color = '#ffffff';
+            } else {
+                info.el.style.backgroundColor = '#28a745'; // Grün
+                info.el.style.color = '#ffffff';
             }
-        });
-        calendar.render();
-    }
+        }
+    });
+    
+    calendar.render();
 });
 </script>
 </body>
