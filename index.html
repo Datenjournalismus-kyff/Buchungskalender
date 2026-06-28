@@ -4,87 +4,145 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Belegungsplan</title>
-    <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css' rel='stylesheet' />
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f9f9f9; }
-        #calendar-container { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .legend { display: flex; gap: 20px; justify-content: center; margin-bottom: 20px; }
-        .legend-item { display: flex; align-items: center; gap: 8px; font-weight: bold; }
-        .box { width: 20px; height: 20px; border-radius: 4px; }
-        .frei { background-color: #28a745; }
-        .belegt { background-color: #dc3545; }
-        .fc-event { display: none !important; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: Arial, sans-serif; background: #f9f9f9; padding: 20px; }
+        #calendar-container { max-width: 860px; margin: 0 auto; background: white; padding: 24px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h2 { text-align: center; margin-bottom: 16px; font-size: 1.3rem; color: #333; }
+
+        /* Legende */
+        .legend { display: flex; gap: 24px; justify-content: center; margin-bottom: 20px; }
+        .legend-item { display: flex; align-items: center; gap: 8px; font-weight: bold; font-size: 0.9rem; }
+        .box { width: 18px; height: 18px; border-radius: 4px; }
+        .frei   { background: #28a745; }
+        .belegt { background: #dc3545; }
+
+        /* Navigation */
+        .nav { display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 16px; }
+        .nav button { background: #555; color: white; border: none; border-radius: 4px; padding: 6px 14px; cursor: pointer; font-size: 0.95rem; }
+        .nav button:hover { background: #333; }
+        .nav h3 { min-width: 200px; text-align: center; font-size: 1.1rem; color: #333; }
+
+        /* Kalendergitter */
+        .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+        .wochentag { text-align: center; font-size: 0.78rem; font-weight: bold; color: #555; padding: 6px 0; }
+        .tag {
+            text-align: center;
+            padding: 10px 4px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            color: white;
+            min-height: 42px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .tag.frei   { background: #28a745; }
+        .tag.belegt { background: #dc3545; }
+        .tag.leer   { background: transparent; color: transparent; pointer-events: none; }
+        .tag.heute  { outline: 3px solid #0056b3; outline-offset: -2px; }
+
+        #fehler { display: none; color: #dc3545; text-align: center; margin-bottom: 12px; font-size: 0.9rem; }
     </style>
 </head>
 <body>
-
 <div id="calendar-container">
     <div class="legend">
-        <div class="legend-item"><div class="box frei"></div> Verfügbar (Grün)</div>
-        <div class="legend-item"><div class="box belegt"></div> Gebucht (Rot)</div>
+        <div class="legend-item"><div class="box frei"></div> Verfügbar</div>
+        <div class="legend-item"><div class="box belegt"></div> Gebucht</div>
     </div>
-    <div id="calendar"></div>
+    <p id="fehler">⚠️ termine.txt nicht gefunden – alle Tage werden als verfügbar angezeigt.</p>
+    <div class="nav">
+        <button onclick="wechsle(-1)">&#8592;</button>
+        <h3 id="monatstitel"></h3>
+        <button onclick="wechsle(1)">&#8594;</button>
+    </div>
+    <div class="grid" id="wochentage"></div>
+    <div class="grid" id="kalender"></div>
 </div>
 
-<script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js'></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    fetch('termine.txt?t=' + new Date().getTime())
-        .then(response => {
-            if (!response.ok) throw new Error('Datei nicht gefunden');
-            return response.text();
-        })
-        .then(text => {
-            const gebuchteTage = [];
-            text.split('\n').forEach(zeile => {
-                const z = zeile.trim();
-                if (!z) return;
-                const daten = z.split(',');
-                if (daten.length === 2) {
-                    gebuchteTage.push({ start: daten[0].trim(), end: daten[1].trim() });
-                }
-            });
-            initCalendar(gebuchteTage);
-        })
-        .catch(() => initCalendar([]));
+const MONATE = ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+const TAGE   = ['Mo','Di','Mi','Do','Fr','Sa','So'];
 
-    function initCalendar(gebuchteTage) {
-        var calendarEl = document.getElementById('calendar');
-        var calendar = new FullCalendar.Calendar(calendarEl, {
-            initialView: 'dayGridMonth',
-            locale: 'de',
-            firstDay: 1,
-            headerToolbar: {
-                left: 'prev,next today',
-                center: 'title',
-                right: ''
-            },
-            dayCellDidMount: function(info) {
-                var cz = info.date;
-                var jahr = cz.getFullYear();
-                var monat = String(cz.getMonth() + 1).padStart(2, '0');
-                var tag = String(cz.getDate()).padStart(2, '0');
-                var datumsString = jahr + '-' + monat + '-' + tag;
+let heute = new Date();
+let aktuell = { jahr: heute.getFullYear(), monat: heute.getMonth() };
+let gebuchteTage = [];
 
-                var istGebucht = gebuchteTage.some(function(zeitraum) {
-                    var start   = new Date(zeitraum.start + "T00:00:00");
-                    var end     = new Date(zeitraum.end   + "T00:00:00");
-                    var aktuell = new Date(datumsString   + "T00:00:00");
-                    return aktuell >= start && aktuell < end;
-                });
+// Wochentags-Header einmalig rendern
+const wt = document.getElementById('wochentage');
+TAGE.forEach(t => { const d = document.createElement('div'); d.className='wochentag'; d.textContent=t; wt.appendChild(d); });
 
-                if (istGebucht) {
-                    info.el.style.backgroundColor = '#dc3545';
-                    info.el.style.color = '#ffffff';
-                } else {
-                    info.el.style.backgroundColor = '#28a745';
-                    info.el.style.color = '#ffffff';
-                }
+function istGebucht(datum) {
+    const d = new Date(datum + 'T00:00:00');
+    return gebuchteTage.some(z => {
+        return d >= new Date(z.start + 'T00:00:00') && d < new Date(z.end + 'T00:00:00');
+    });
+}
+
+function renderKalender() {
+    const { jahr, monat } = aktuell;
+    document.getElementById('monatstitel').textContent = MONATE[monat] + ' ' + jahr;
+
+    const grid = document.getElementById('kalender');
+    grid.innerHTML = '';
+
+    const ersterTag = new Date(jahr, monat, 1);
+    // Montag = 0, Sonntag = 6
+    let wochentag = ersterTag.getDay(); // 0=So, 1=Mo...
+    wochentag = (wochentag + 6) % 7;   // Umrechnen auf Mo=0
+
+    const tageImMonat = new Date(jahr, monat + 1, 0).getDate();
+    const heutStr = heute.getFullYear() + '-'
+        + String(heute.getMonth()+1).padStart(2,'0') + '-'
+        + String(heute.getDate()).padStart(2,'0');
+
+    // Leere Zellen vor dem 1.
+    for (let i = 0; i < wochentag; i++) {
+        const z = document.createElement('div'); z.className='tag leer'; z.textContent='0'; grid.appendChild(z);
+    }
+
+    for (let t = 1; t <= tageImMonat; t++) {
+        const ds = jahr + '-' + String(monat+1).padStart(2,'0') + '-' + String(t).padStart(2,'0');
+        const z = document.createElement('div');
+        z.className = 'tag ' + (istGebucht(ds) ? 'belegt' : 'frei');
+        if (ds === heutStr) z.classList.add('heute');
+        z.textContent = t;
+        grid.appendChild(z);
+    }
+}
+
+function wechsle(delta) {
+    aktuell.monat += delta;
+    if (aktuell.monat > 11) { aktuell.monat = 0;  aktuell.jahr++; }
+    if (aktuell.monat < 0)  { aktuell.monat = 11; aktuell.jahr--; }
+    renderKalender();
+}
+
+// termine.txt laden
+const controller = new AbortController();
+const timeout = setTimeout(() => controller.abort(), 6000);
+
+fetch('termine.txt?t=' + Date.now(), { signal: controller.signal })
+    .then(r => { clearTimeout(timeout); if (!r.ok) throw new Error(); return r.text(); })
+    .then(text => {
+        text.split('\n').forEach(zeile => {
+            const z = zeile.trim();
+            if (!z || z.startsWith('#')) return;
+            const teile = z.split(',');
+            if (teile.length === 2) {
+                gebuchteTage.push({ start: teile[0].trim(), end: teile[1].trim() });
             }
         });
-        calendar.render();
-    }
-});
+        renderKalender();
+    })
+    .catch(() => {
+        clearTimeout(timeout);
+        document.getElementById('fehler').style.display = 'block';
+        renderKalender();
+    });
 </script>
 </body>
 </html>
