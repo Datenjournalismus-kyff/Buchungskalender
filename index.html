@@ -78,7 +78,7 @@ TAGE.forEach(t => { const d = document.createElement('div'); d.className='wochen
 function istGebucht(datum) {
     const d = new Date(datum + 'T00:00:00');
     return gebuchteTage.some(z => {
-        return d >= new Date(z.start + 'T00:00:00') && d < new Date(z.end + 'T00:00:00');
+        return d >= new Date(z.start + 'T00:00:00') && d <= new Date(z.end + 'T00:00:00');
     });
 }
 
