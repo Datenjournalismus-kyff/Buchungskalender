@@ -28,16 +28,20 @@
 <script src="https://jsdelivr.net"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // 1. Termine aus der txt-Datei laden
+    // Termine aus der txt-Datei laden
     fetch('termine.txt')
         .then(response => response.text())
         .then(text => {
             const gebuchteTage = [];
             
-            // Text zeilenweise verarbeiten
+            // Text zeilenweise splitten
             const zeilen = text.split('\n');
             zeilen.forEach(zeile => {
-                const daten = zeile.trim().split(',');
+                // Leerzeichen entfernen
+                const bereinigteZeile = zeile.trim();
+                if (bereinigteZeile === "") return; // Leere Zeilen überspringen
+
+                const daten = bereinigteZeile.split(',');
                 if (daten.length === 2) {
                     gebuchteTage.push({
                         start: daten[0].trim(),
@@ -46,12 +50,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
 
-            // 2. Kalender erst initialisieren, wenn Daten geladen sind
             initCalendar(gebuchteTage);
         })
         .catch(error => {
             console.error('Fehler beim Laden der Termine:', error);
-            initCalendar([]); // Leeren Kalender anzeigen bei Fehler
+            initCalendar([]); 
         });
 
     function initCalendar(gebuchteTage) {
@@ -72,10 +75,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 var tag = String(cz.getDate()).padStart(2, '0');
                 var datumsString = `${jahr}-${monat}-${tag}`;
 
+                // Prüfen, ob der Tag in einem gebuchten Zeitraum liegt
                 var istGebucht = gebuchteTage.some(function(zeitraum) {
-                    var start = new Date(zeitraum.start);
-                    var end = new Date(zeitraum.end);
-                    var aktuell = new Date(datumsString);
+                    var start = new Date(zeitraum.start + "T00:00:00");
+                    var end = new Date(zeitraum.end + "T00:00:00");
+                    var aktuell = new Date(datumsString + "T00:00:00");
                     return aktuell >= start && aktuell < end;
                 });
 
